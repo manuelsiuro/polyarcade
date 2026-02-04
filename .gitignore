@@ -1,0 +1,28 @@
+# OS / System
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Logs and Databases
+*.log
+*.sqlite
+
+# Node / Dependencies (if applicable in future)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Python (Simple Server artifacts)
+__pycache__/
+*.py[cod]
+
+# IDEs / Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project Specific
+# (If there are any temporary build artifacts, list them here. Currently assuming raw JS/HTML)
+# artifacts/ (if inside the folder, usually they are external in this env but good to be safe)

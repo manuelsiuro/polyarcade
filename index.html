@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>PolyArcade</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a2e; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        canvas { display: block; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .pointer-events-auto { pointer-events: auto; }
+    </style>
+    <!-- Import Map for Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="game-container"></div>
+    
+    <!-- UI Layer -->
+    <div id="ui-layer">
+        <!-- Main Menu Overlay -->
+        <div id="main-menu" class="pointer-events-auto ui-screen">
+            <h1 class="title">PolyArcade</h1>
+            <div id="game-list">
+                <!-- Game items will be injected here -->
+            </div>
+        </div>
+
+        <!-- HUD Layer -->
+        <div id="hud" class="hidden ui-screen">
+            <button id="btn-back" class="pointer-events-auto">← Menu</button>
+            <div id="score-display">Score: 0</div>
+        </div>
+
+        <!-- Game Over Overlay -->
+        <div id="game-over" class="hidden pointer-events-auto ui-screen">
+            <h2>Game Over</h2>
+            <p id="final-score">Score: 100</p>
+            <button id="btn-replay">Replay</button>
+            <button id="btn-menu">Main Menu</button>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
