@@ -605,6 +605,29 @@ export class IsoSokoban extends Game {
 
         this.raycaster = new THREE.Raycaster();
         this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+        // Persistence
+        this.progress = this.loadProgress();
+    }
+
+    loadProgress() {
+        const data = localStorage.getItem('isoSokoban_progress');
+        return data ? JSON.parse(data) : {};
+    }
+
+    saveProgress(levelIndex, moves) {
+        if (!this.progress[levelIndex] || moves < this.progress[levelIndex].bestMoves) {
+            this.progress[levelIndex] = {
+                completed: true,
+                bestMoves: moves,
+                date: Date.now()
+            };
+            localStorage.setItem('isoSokoban_progress', JSON.stringify(this.progress));
+        }
+    }
+
+    getBestScore(levelIndex) {
+        return this.progress[levelIndex] ? this.progress[levelIndex].bestMoves : null;
     }
 
     init() {
@@ -668,7 +691,10 @@ export class IsoSokoban extends Game {
             const x = (col - 1) * 3; // -3, 0, 3
             const z = (row - 1) * 3; // -3, 0, 3
 
-            const cube = this.createMenuCube(i + 1, x, z);
+            const isCompleted = !!this.progress[i];
+            const bestScore = this.getBestScore(i);
+
+            const cube = this.createMenuCube(i + 1, x, z, isCompleted, bestScore);
             cube.userData = { type: 'level', index: i };
             this.menuItems.push(cube);
 
@@ -698,11 +724,13 @@ export class IsoSokoban extends Game {
         }
     }
 
-    createMenuCube(levelNum, x, z) {
+    createMenuCube(levelNum, x, z, isCompleted = false, bestScore = null) {
         const size = 1.5;
+        const baseColor = isCompleted ? 0x2ecc71 : 0x00ffff; // Green for completed, Cyan for normal
+
         const geo = new THREE.BoxGeometry(size, size, size);
         const mat = new THREE.MeshStandardMaterial({
-            color: 0x00ffff,
+            color: baseColor,
             transparent: true,
             opacity: 0.3,
             roughness: 0.2
@@ -712,7 +740,7 @@ export class IsoSokoban extends Game {
 
         // Neon Edges
         const edges = new THREE.EdgesGeometry(geo);
-        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x00ffff }));
+        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: baseColor }));
         mesh.add(line);
 
         // Text Number (Canvas Texture)
@@ -720,11 +748,17 @@ export class IsoSokoban extends Game {
         canvas.width = 128;
         canvas.height = 128;
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#00ffff';
+        ctx.fillStyle = isCompleted ? '#2ecc71' : '#00ffff';
         ctx.font = 'bold 80px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(levelNum.toString(), 64, 64);
+
+        if (bestScore !== null) {
+            ctx.font = 'bold 24px Arial';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(`Best: ${bestScore}`, 64, 100);
+        }
 
         const tex = new THREE.CanvasTexture(canvas);
         const textGeo = new THREE.PlaneGeometry(1.2, 1.2);
@@ -1116,9 +1150,17 @@ export class IsoSokoban extends Game {
         if (win) {
             if (this.app.audio) this.app.audio.playWin();
 
-            // Victory Delay -> Back to Menu
+            // Save Progress
+            this.saveProgress(this.currentLevelIndex, this.score);
+
+            // Victory Delay -> Next Level or Menu
             setTimeout(() => {
-                this.showMenu(this.menuPage);
+                const nextIndex = this.currentLevelIndex + 1;
+                if (nextIndex < this.levels.length) {
+                    this.loadLevel(nextIndex);
+                } else {
+                    this.showMenu(this.menuPage);
+                }
             }, 2000);
         }
     }
