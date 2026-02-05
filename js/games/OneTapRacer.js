@@ -291,10 +291,32 @@ export class OneTapRacer extends Game {
 
     async loadAssets() {
         const assetPaths = {
+            // Cars
             car: 'assets/onetapracer/car.glb',
+            car_f1: 'assets/onetapracer/car_f1.glb',
+            car_kart: 'assets/onetapracer/car_kart.glb',
+            car_sport: 'assets/onetapracer/car_sport.glb',
+            // Core
             coin: 'assets/onetapracer/coin.glb',
             barrier: 'assets/onetapracer/barrier.glb',
-            tree: 'assets/onetapracer/tree.glb'
+            // Start/Finish
+            start_arch: 'assets/onetapracer/start_arch.glb',
+            // Trees (variety)
+            tree: 'assets/onetapracer/tree.glb',
+            tree_pine: 'assets/onetapracer/tree_pine.glb',
+            tree_round: 'assets/onetapracer/tree_round.glb',
+            tree_palm: 'assets/onetapracer/tree_palm.glb',
+            tree_bushy: 'assets/onetapracer/tree_bushy.glb',
+            tree_cypress: 'assets/onetapracer/tree_cypress.glb',
+            // Props
+            traffic_cone: 'assets/onetapracer/traffic_cone.glb',
+            tire_stack: 'assets/onetapracer/tire_stack.glb',
+            jerry_can: 'assets/onetapracer/jerry_can.glb',
+            billboard: 'assets/onetapracer/billboard.glb',
+            // Buildings
+            grandstand: 'assets/onetapracer/grandstand.glb',
+            pit_building: 'assets/onetapracer/pit_building.glb',
+            timing_tower: 'assets/onetapracer/timing_tower.glb'
         };
 
         const loadPromises = Object.entries(assetPaths).map(([key, path]) => {
@@ -476,12 +498,29 @@ export class OneTapRacer extends Game {
         // Create container for car (used for positioning and Y rotation)
         this.car.mesh = new THREE.Group();
 
+        // Select car type randomly from available models
+        const carTypes = ['car_f1', 'car_kart', 'car_sport', 'car'];
+        const availableCars = carTypes.filter(type => this.assets[type]);
+        const selectedCarType = availableCars[Math.floor(Math.random() * availableCars.length)] || 'car';
+
         let carModel;
-        if (this.assets.car) {
-            carModel = this.assets.car.clone();
-            carModel.scale.setScalar(0.8);
-            // Rotate 90° on X to lay car flat (front was pointing up)
-            carModel.rotation.x = Math.PI / 2;
+        if (this.assets[selectedCarType]) {
+            carModel = this.assets[selectedCarType].clone();
+            // Scale and rotate based on car type
+            if (selectedCarType === 'car_f1') {
+                carModel.scale.setScalar(1.0);
+                carModel.rotation.y = -Math.PI / 2; // Face forward (Z axis)
+            } else if (selectedCarType === 'car_kart') {
+                carModel.scale.setScalar(1.2);
+                carModel.rotation.y = -Math.PI / 2; // Face forward (Z axis)
+            } else if (selectedCarType === 'car_sport') {
+                carModel.scale.setScalar(1.0);
+                carModel.rotation.y = -Math.PI / 2; // Face forward (Z axis)
+            } else {
+                // Original car model
+                carModel.scale.setScalar(0.8);
+                carModel.rotation.x = Math.PI / 2;
+            }
         } else {
             // Fallback car geometry
             const carGeo = new THREE.BoxGeometry(1.5, 0.5, 2.5);
@@ -537,24 +576,252 @@ export class OneTapRacer extends Game {
     }
 
     setupEnvironment() {
-        if (!this.assets.tree) return;
+        // Add start/finish arch
+        this.addStartFinishArch();
+
+        // Add variety of trees around track
+        this.addTreesAroundTrack();
+
+        // Add track decorations (props and buildings)
+        this.addTrackDecorations();
+    }
+
+    addStartFinishArch() {
+        if (!this.assets.start_arch) return;
+
+        // Get start position and orientation
+        const startPoint = this.trackCurve.getPointAt(0);
+        const startTangent = this.trackCurve.getTangentAt(0);
+
+        const arch = this.assets.start_arch.clone();
+        arch.position.copy(startPoint);
+        arch.position.y = 0;
+
+        // Rotate arch to span across track (perpendicular to direction)
+        const angle = Math.atan2(startTangent.x, startTangent.z);
+        arch.rotation.y = angle;
+
+        // Scale to fit track width
+        arch.scale.setScalar(1.0);
+
+        this.environmentGroup.add(arch);
+    }
+
+    addTreesAroundTrack() {
+        // Available tree types
+        const treeTypes = ['tree_pine', 'tree_round', 'tree_palm', 'tree_bushy', 'tree_cypress', 'tree'];
+        const availableTrees = treeTypes.filter(type => this.assets[type]);
+
+        if (availableTrees.length === 0) return;
 
         // Scatter trees around the track based on bounds
-        const treeCount = 40;
-        const radius = Math.max(this.trackBounds.width, this.trackBounds.height) / 2 + 20;
+        const treeCount = 60;
+        const radius = Math.max(this.trackBounds.width, this.trackBounds.height) / 2 + 15;
 
         for (let i = 0; i < treeCount; i++) {
-            const angle = (i / treeCount) * Math.PI * 2;
-            const treeRadius = radius + Math.random() * 30;
+            const angle = (i / treeCount) * Math.PI * 2 + Math.random() * 0.3;
+            const treeRadius = radius + Math.random() * 40;
 
-            const tree = this.assets.tree.clone();
+            // Select random tree type
+            const treeType = availableTrees[Math.floor(Math.random() * availableTrees.length)];
+            const tree = this.assets[treeType].clone();
+
             tree.position.x = this.trackBounds.centerX + Math.cos(angle) * treeRadius;
             tree.position.z = this.trackBounds.centerZ + Math.sin(angle) * treeRadius;
             tree.position.y = 0;
-            tree.scale.setScalar(0.8 + Math.random() * 0.4);
+
+            // Scale based on tree type for visual variety
+            let baseScale = 0.8 + Math.random() * 0.4;
+            if (treeType === 'tree_palm') baseScale *= 0.9;
+            if (treeType === 'tree_cypress') baseScale *= 1.1;
+            if (treeType === 'tree_bushy') baseScale *= 0.85;
+            tree.scale.setScalar(baseScale);
+
             tree.rotation.y = Math.random() * Math.PI * 2;
 
             this.environmentGroup.add(tree);
+        }
+
+        // Add some inner trees (between track sections if there's space)
+        const innerTreeCount = 15;
+        for (let i = 0; i < innerTreeCount; i++) {
+            const t = Math.random();
+            const point = this.trackCurve.getPointAt(t);
+            const tangent = this.trackCurve.getTangentAt(t);
+            const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+            // Place tree far from track edge
+            const side = Math.random() > 0.5 ? 1 : -1;
+            const offset = (this.trackWidth / 2 + 8 + Math.random() * 10) * side;
+
+            const treeType = availableTrees[Math.floor(Math.random() * availableTrees.length)];
+            const tree = this.assets[treeType].clone();
+
+            tree.position.copy(point).add(perp.clone().multiplyScalar(offset));
+            tree.position.y = 0;
+            tree.scale.setScalar(0.7 + Math.random() * 0.5);
+            tree.rotation.y = Math.random() * Math.PI * 2;
+
+            this.environmentGroup.add(tree);
+        }
+    }
+
+    addTrackDecorations() {
+        // Add props along track at strategic locations
+        this.addTrackProps();
+
+        // Add buildings around the track
+        this.addBuildings();
+    }
+
+    addTrackProps() {
+        // Traffic cones at certain curves
+        if (this.assets.traffic_cone) {
+            const coneCount = 20;
+            for (let i = 0; i < coneCount; i++) {
+                const t = Math.random();
+                const curvature = Math.abs(this.getCurvature(t));
+
+                // Only place cones at curves
+                if (curvature < 0.3) continue;
+
+                const point = this.trackCurve.getPointAt(t);
+                const tangent = this.trackCurve.getTangentAt(t);
+                const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                const cone = this.assets.traffic_cone.clone();
+                const side = Math.random() > 0.5 ? 1 : -1;
+                const offset = (this.trackWidth / 2 + 0.5) * side;
+
+                cone.position.copy(point).add(perp.clone().multiplyScalar(offset));
+                cone.position.y = 0;
+                cone.scale.setScalar(1.0);
+
+                this.environmentGroup.add(cone);
+            }
+        }
+
+        // Tire stacks at track edges
+        if (this.assets.tire_stack) {
+            const stackCount = 12;
+            for (let i = 0; i < stackCount; i++) {
+                const t = i / stackCount;
+                const point = this.trackCurve.getPointAt(t);
+                const tangent = this.trackCurve.getTangentAt(t);
+                const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                const stack = this.assets.tire_stack.clone();
+                const side = i % 2 === 0 ? 1 : -1;
+                const offset = (this.trackWidth / 2 + 2) * side;
+
+                stack.position.copy(point).add(perp.clone().multiplyScalar(offset));
+                stack.position.y = 0;
+                stack.scale.setScalar(0.8);
+                stack.rotation.y = Math.random() * Math.PI * 2;
+
+                this.environmentGroup.add(stack);
+            }
+        }
+
+        // Jerry cans scattered near pit area (at track bounds edge)
+        if (this.assets.jerry_can) {
+            const canCount = 6;
+            for (let i = 0; i < canCount; i++) {
+                const can = this.assets.jerry_can.clone();
+
+                // Place near start/pit area
+                const startPoint = this.trackCurve.getPointAt(0.02 + i * 0.01);
+                const tangent = this.trackCurve.getTangentAt(0.02 + i * 0.01);
+                const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                can.position.copy(startPoint).add(perp.clone().multiplyScalar(this.trackWidth / 2 + 3 + Math.random() * 2));
+                can.position.y = 0;
+                can.scale.setScalar(0.8);
+                can.rotation.y = Math.random() * Math.PI * 2;
+
+                this.environmentGroup.add(can);
+            }
+        }
+
+        // Billboards around the track
+        if (this.assets.billboard) {
+            const billboardCount = 4;
+            for (let i = 0; i < billboardCount; i++) {
+                const t = (i / billboardCount + 0.125) % 1;
+                const point = this.trackCurve.getPointAt(t);
+                const tangent = this.trackCurve.getTangentAt(t);
+                const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                const billboard = this.assets.billboard.clone();
+                const side = i % 2 === 0 ? 1 : -1;
+                const offset = (this.trackWidth / 2 + 12) * side;
+
+                billboard.position.copy(point).add(perp.clone().multiplyScalar(offset));
+                billboard.position.y = 0;
+                billboard.scale.setScalar(1.2);
+
+                // Face toward track
+                const angle = Math.atan2(tangent.x, tangent.z);
+                billboard.rotation.y = angle + (side > 0 ? -Math.PI / 2 : Math.PI / 2);
+
+                this.environmentGroup.add(billboard);
+            }
+        }
+    }
+
+    addBuildings() {
+        // Add grandstand near start
+        if (this.assets.grandstand) {
+            const startPoint = this.trackCurve.getPointAt(0.95);
+            const tangent = this.trackCurve.getTangentAt(0.95);
+            const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+            const grandstand = this.assets.grandstand.clone();
+            grandstand.position.copy(startPoint).add(perp.clone().multiplyScalar(this.trackWidth / 2 + 15));
+            grandstand.position.y = 0;
+            grandstand.scale.setScalar(1.2);
+
+            // Face track
+            const angle = Math.atan2(tangent.x, tangent.z);
+            grandstand.rotation.y = angle - Math.PI / 2;
+
+            this.environmentGroup.add(grandstand);
+        }
+
+        // Add pit building near start
+        if (this.assets.pit_building) {
+            const startPoint = this.trackCurve.getPointAt(0.05);
+            const tangent = this.trackCurve.getTangentAt(0.05);
+            const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+            const pitBuilding = this.assets.pit_building.clone();
+            pitBuilding.position.copy(startPoint).add(perp.clone().multiplyScalar(this.trackWidth / 2 + 8));
+            pitBuilding.position.y = 0;
+            pitBuilding.scale.setScalar(1.0);
+
+            // Face track
+            const angle = Math.atan2(tangent.x, tangent.z);
+            pitBuilding.rotation.y = angle - Math.PI / 2;
+
+            this.environmentGroup.add(pitBuilding);
+        }
+
+        // Add timing tower near start line
+        if (this.assets.timing_tower) {
+            const startPoint = this.trackCurve.getPointAt(0);
+            const tangent = this.trackCurve.getTangentAt(0);
+            const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+            const tower = this.assets.timing_tower.clone();
+            tower.position.copy(startPoint).add(perp.clone().multiplyScalar(-(this.trackWidth / 2 + 10)));
+            tower.position.y = 0;
+            tower.scale.setScalar(1.0);
+
+            // Face track
+            const angle = Math.atan2(tangent.x, tangent.z);
+            tower.rotation.y = angle + Math.PI / 2;
+
+            this.environmentGroup.add(tower);
         }
     }
 
