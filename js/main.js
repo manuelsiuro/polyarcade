@@ -5,8 +5,6 @@ import { Orbit4 } from './games/Orbit4.js';
 import { CubeCrawler } from './games/CubeCrawler.js';
 import { IsoSokoban } from './games/IsoSokoban.js';
 import { MemoryCrystals } from './games/MemoryCrystals.js';
-import { CodeBreaker3D } from './games/CodeBreaker3D.js';
-import { GyroLabyrinth } from './games/GyroLabyrinth.js';
 import { ShapeFit } from './games/ShapeFit.js';
 import { MahjongStack } from './games/MahjongStack.js';
 
@@ -24,8 +22,6 @@ document.addEventListener('DOMContentLoaded', () => {
         { name: 'Cube Crawler', class: CubeCrawler },
         { name: 'Iso-Sokoban', class: IsoSokoban },
         { name: 'Memory Crystals', class: MemoryCrystals },
-        { name: 'Code Breaker 3D', class: CodeBreaker3D },
-        { name: 'Gyro Labyrinth', class: GyroLabyrinth },
         { name: 'Shape Fit', class: ShapeFit },
         { name: 'Mahjong Stack', class: MahjongStack }
     ]);
