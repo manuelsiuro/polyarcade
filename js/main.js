@@ -7,6 +7,7 @@ import { IsoSokoban } from './games/IsoSokoban.js';
 import { MemoryCrystals } from './games/MemoryCrystals.js';
 import { ShapeFit } from './games/ShapeFit.js';
 import { MahjongStack } from './games/MahjongStack.js';
+import { OneTapRacer } from './games/OneTapRacer.js';
 
 // Wait for DOM to load
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { name: 'Iso-Sokoban', class: IsoSokoban },
         { name: 'Memory Crystals', class: MemoryCrystals },
         { name: 'Shape Fit', class: ShapeFit },
-        { name: 'Mahjong Stack', class: MahjongStack }
+        { name: 'Mahjong Stack', class: MahjongStack },
+        { name: 'One Tap Racer', class: OneTapRacer }
     ]);
 });
