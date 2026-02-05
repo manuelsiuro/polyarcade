@@ -147,7 +147,7 @@ export class MahjongStack extends Game {
     isFree(x, y, z) {
         // Tile is free if:
         // 1. No tile above (y+1)
-        // 2. At least 2 adjacent faces are free (Left/Right/Front/Back) (x+/-1, z+/-1)
+        // 2. At least 1 adjacent face is free (Left/Right/Front/Back) (x+/-1, z+/-1)
 
         // Check Top
         if (this.hasTile(x, y + 1, z)) return false;
@@ -158,7 +158,7 @@ export class MahjongStack extends Game {
         if (!this.hasTile(x, y, z + 1)) freeFaces++;
         if (!this.hasTile(x, y, z - 1)) freeFaces++;
 
-        return freeFaces >= 2;
+        return freeFaces >= 1; // Relaxed from 2 to 1
     }
 
     hasTile(x, y, z) {
@@ -167,7 +167,7 @@ export class MahjongStack extends Game {
 
     select(mesh) {
         this.selectedTile = mesh;
-        mesh.material.emissive.setHex(0x555555);
+        mesh.material.emissive.setHex(0xaaaaaa);
     }
 
     deselect() {
