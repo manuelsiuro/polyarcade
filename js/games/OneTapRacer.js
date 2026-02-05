@@ -1,16 +1,27 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/GLTFLoader.js';
 import { Game } from '../engine/Game.js';
+import { F1_TRACKS, getTracksInOrder } from '../data/F1Tracks.js';
 
 export class OneTapRacer extends Game {
     constructor(app) {
         super(app);
         this.name = 'One Tap Racer';
 
+        // Game state
+        this.state = 'menu'; // 'menu' | 'racing'
+        this.selectedTrackIndex = 0;
+        this.currentTrack = null;
+        this.orderedTracks = getTracksInOrder();
+
         // Track
         this.trackCurve = null;
         this.trackLength = 0;
         this.trackWidth = 4;
+
+        // Track preview
+        this.trackPreviewLine = null;
+        this.trackPreviewGroup = new THREE.Group();
 
         // Car state
         this.car = {
@@ -50,12 +61,17 @@ export class OneTapRacer extends Game {
         this.scene.add(this.trackGroup);
         this.scene.add(this.environmentGroup);
         this.scene.add(this.coinGroup);
+        this.scene.add(this.trackPreviewGroup);
+
+        // UI Elements (will be created in init)
+        this.trackNameElement = null;
+        this.trackInstructionsElement = null;
     }
 
     async init() {
-        // Camera setup
-        this.camera.position.set(0, 10, 20);
-        this.camera.lookAt(0, 0, 0);
+        // Update camera far plane for top-down menu view
+        this.camera.far = 500;
+        this.camera.updateProjectionMatrix();
 
         // Lighting
         const ambient = new THREE.AmbientLight(0xffffff, 0.6);
@@ -64,23 +80,213 @@ export class OneTapRacer extends Game {
         sun.castShadow = true;
         this.scene.add(ambient, sun);
 
-        // Sky color
-        this.scene.background = new THREE.Color(0x87ceeb);
+        // Dark background for menu (will change to sky when racing)
+        this.scene.background = new THREE.Color(0x0f0c29);
 
         // Load assets
         await this.loadAssets();
 
-        // Setup track
-        this.setupTrack();
+        // Create UI elements
+        this.createTrackMenuUI();
 
-        // Setup car
-        this.setupCar();
+        // Show track selection menu
+        this.showTrackMenu();
+    }
 
-        // Spawn coins
-        this.spawnCoins();
+    createTrackMenuUI() {
+        // Track name display
+        this.trackNameElement = document.createElement('div');
+        this.trackNameElement.id = 'track-name';
+        this.trackNameElement.className = 'track-menu-ui';
+        document.getElementById('ui-layer').appendChild(this.trackNameElement);
 
-        // Add environment
-        this.setupEnvironment();
+        // Country display
+        this.trackCountryElement = document.createElement('div');
+        this.trackCountryElement.id = 'track-country';
+        this.trackCountryElement.className = 'track-menu-ui';
+        document.getElementById('ui-layer').appendChild(this.trackCountryElement);
+
+        // Track counter (e.g., "1 / 24")
+        this.trackCounterElement = document.createElement('div');
+        this.trackCounterElement.id = 'track-counter';
+        this.trackCounterElement.className = 'track-menu-ui';
+        document.getElementById('ui-layer').appendChild(this.trackCounterElement);
+
+        // Left arrow button
+        this.leftArrowBtn = document.createElement('button');
+        this.leftArrowBtn.id = 'track-arrow-left';
+        this.leftArrowBtn.className = 'track-arrow-btn';
+        this.leftArrowBtn.innerHTML = '&#10094;';
+        this.leftArrowBtn.addEventListener('click', () => this.prevTrack());
+        document.getElementById('ui-layer').appendChild(this.leftArrowBtn);
+
+        // Right arrow button
+        this.rightArrowBtn = document.createElement('button');
+        this.rightArrowBtn.id = 'track-arrow-right';
+        this.rightArrowBtn.className = 'track-arrow-btn';
+        this.rightArrowBtn.innerHTML = '&#10095;';
+        this.rightArrowBtn.addEventListener('click', () => this.nextTrack());
+        document.getElementById('ui-layer').appendChild(this.rightArrowBtn);
+
+        // Start button
+        this.startBtn = document.createElement('button');
+        this.startBtn.id = 'track-start-btn';
+        this.startBtn.className = 'track-menu-ui';
+        this.startBtn.textContent = 'START RACE';
+        this.startBtn.addEventListener('click', () => this.startRace());
+        document.getElementById('ui-layer').appendChild(this.startBtn);
+    }
+
+    prevTrack() {
+        this.selectedTrackIndex = (this.selectedTrackIndex - 1 + this.orderedTracks.length) % this.orderedTracks.length;
+        this.updateTrackPreview();
+        if (this.app.audio) this.app.audio.playEat();
+    }
+
+    nextTrack() {
+        this.selectedTrackIndex = (this.selectedTrackIndex + 1) % this.orderedTracks.length;
+        this.updateTrackPreview();
+        if (this.app.audio) this.app.audio.playEat();
+    }
+
+    showTrackMenu() {
+        this.state = 'menu';
+
+        // Show UI elements
+        if (this.trackNameElement) {
+            this.trackNameElement.classList.remove('hidden');
+            this.trackCountryElement.classList.remove('hidden');
+            this.trackCounterElement.classList.remove('hidden');
+            this.leftArrowBtn.classList.remove('hidden');
+            this.rightArrowBtn.classList.remove('hidden');
+            this.startBtn.classList.remove('hidden');
+        }
+
+        // Position camera for top-down view
+        this.camera.position.set(0, 100, 0);
+        this.camera.lookAt(0, 0, 0);
+
+        // Create ground for menu
+        this.createMenuGround();
+
+        // Show track preview
+        this.updateTrackPreview();
+    }
+
+    createMenuGround() {
+        // No ground needed - using solid background color
+    }
+
+    updateTrackPreview() {
+        // Clear old preview
+        while (this.trackPreviewGroup.children.length > 0) {
+            this.trackPreviewGroup.remove(this.trackPreviewGroup.children[0]);
+        }
+
+        // Get selected track
+        const track = this.orderedTracks[this.selectedTrackIndex];
+        if (!track) return;
+
+        // Update UI
+        if (this.trackNameElement) {
+            this.trackNameElement.textContent = track.name.toUpperCase();
+            this.trackCountryElement.textContent = track.country;
+            this.trackCounterElement.textContent = `${this.selectedTrackIndex + 1} / ${this.orderedTracks.length}`;
+        }
+
+        // Create preview from selected track
+        const points = track.points.map(p => new THREE.Vector3(p[0], p[1], p[2]));
+        const curve = new THREE.CatmullRomCurve3(points, true);
+        const previewPoints = curve.getPoints(150);
+
+        // Create filled track preview (wide line effect using plane)
+        const trackShape = this.createTrackShape(curve);
+        if (trackShape) {
+            this.trackPreviewGroup.add(trackShape);
+        }
+
+        // Create track outline on top
+        const geo = new THREE.BufferGeometry().setFromPoints(previewPoints);
+        const mat = new THREE.LineBasicMaterial({ color: 0x00e5ff, linewidth: 2 });
+        const trackLine = new THREE.Line(geo, mat);
+        trackLine.position.y = 0.5;
+        this.trackPreviewGroup.add(trackLine);
+
+        // Add start/finish marker
+        const startPoint = curve.getPointAt(0);
+        const startTangent = curve.getTangentAt(0);
+        const startMarker = this.createStartMarker(startPoint, startTangent);
+        this.trackPreviewGroup.add(startMarker);
+    }
+
+    createTrackShape(curve) {
+        const segments = 150;
+        const width = 3;
+        const positions = [];
+
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const point = curve.getPointAt(t);
+            const tangent = curve.getTangentAt(t);
+            const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+            const left = point.clone().add(perp.clone().multiplyScalar(width / 2));
+            const right = point.clone().add(perp.clone().multiplyScalar(-width / 2));
+
+            positions.push(left.x, 0.2, left.z);
+            positions.push(right.x, 0.2, right.z);
+        }
+
+        const indices = [];
+        for (let i = 0; i < segments; i++) {
+            const a = i * 2;
+            const b = i * 2 + 1;
+            const c = i * 2 + 2;
+            const d = i * 2 + 3;
+            indices.push(a, b, c);
+            indices.push(b, d, c);
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x1a1a3e,
+            side: THREE.DoubleSide
+        });
+
+        return new THREE.Mesh(geometry, material);
+    }
+
+    createStartMarker(position, tangent) {
+        const group = new THREE.Group();
+
+        // Start/finish line marker
+        const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+        const angle = Math.atan2(tangent.x, tangent.z);
+
+        // Create checkered pattern
+        const checkerSize = 0.8;
+        const numCheckers = 8;
+        for (let i = 0; i < numCheckers; i++) {
+            const geo = new THREE.PlaneGeometry(checkerSize, checkerSize);
+            const isWhite = i % 2 === 0;
+            const mat = new THREE.MeshBasicMaterial({ color: isWhite ? 0xffffff : 0x000000 });
+            const checker = new THREE.Mesh(geo, mat);
+            checker.rotation.x = -Math.PI / 2;
+
+            const offset = (i - numCheckers / 2 + 0.5) * checkerSize;
+            checker.position.copy(position);
+            checker.position.add(perp.clone().multiplyScalar(offset));
+            checker.position.y = 0.6;
+            checker.rotation.z = angle;
+
+            group.add(checker);
+        }
+
+        return group;
     }
 
     async loadAssets() {
@@ -111,24 +317,61 @@ export class OneTapRacer extends Game {
         await Promise.all(loadPromises);
     }
 
-    setupTrack() {
-        // Define oval circuit control points
-        const points = [
-            new THREE.Vector3(0, 0, -40),
-            new THREE.Vector3(25, 0, -35),
-            new THREE.Vector3(40, 0, -15),
-            new THREE.Vector3(40, 0, 15),
-            new THREE.Vector3(25, 0, 35),
-            new THREE.Vector3(0, 0, 40),
-            new THREE.Vector3(-25, 0, 35),
-            new THREE.Vector3(-40, 0, 15),
-            new THREE.Vector3(-40, 0, -15),
-            new THREE.Vector3(-25, 0, -35)
-        ];
+    startRace() {
+        this.state = 'racing';
+
+        // Change to sky background for racing
+        this.scene.background = new THREE.Color(0x87ceeb);
+
+        // Hide menu UI
+        if (this.trackNameElement) {
+            this.trackNameElement.classList.add('hidden');
+            this.trackCountryElement.classList.add('hidden');
+            this.trackCounterElement.classList.add('hidden');
+            this.leftArrowBtn.classList.add('hidden');
+            this.rightArrowBtn.classList.add('hidden');
+            this.startBtn.classList.add('hidden');
+        }
+
+        // Remove menu ground
+        if (this.menuGround) {
+            this.scene.remove(this.menuGround);
+            this.menuGround = null;
+        }
+
+        // Clear preview
+        while (this.trackPreviewGroup.children.length > 0) {
+            this.trackPreviewGroup.remove(this.trackPreviewGroup.children[0]);
+        }
+
+        // Setup track with selected circuit
+        this.setupTrack(this.orderedTracks[this.selectedTrackIndex]);
+
+        // Setup car
+        this.setupCar();
+
+        // Spawn coins
+        this.spawnCoins();
+
+        // Add environment
+        this.setupEnvironment();
+
+        // Reset camera target
+        this._cameraLookTarget = null;
+    }
+
+    setupTrack(trackData) {
+        this.currentTrack = trackData;
+
+        // Convert points array to Vector3 array
+        const points = trackData.points.map(p => new THREE.Vector3(p[0], p[1], p[2]));
 
         // Create closed spline
         this.trackCurve = new THREE.CatmullRomCurve3(points, true);
         this.trackLength = this.trackCurve.getLength();
+
+        // Calculate track bounds for environment scaling
+        this.trackBounds = this.calculateTrackBounds();
 
         // Create road surface using TubeGeometry
         const tubeGeo = new THREE.TubeGeometry(this.trackCurve, 200, this.trackWidth / 2, 8, true);
@@ -156,8 +399,9 @@ export class OneTapRacer extends Game {
         centerLine.position.y = 0.1;
         this.trackGroup.add(centerLine);
 
-        // Create grass ground
-        const grassGeo = new THREE.PlaneGeometry(200, 200);
+        // Create grass ground - size based on track bounds
+        const grassSize = Math.max(this.trackBounds.width, this.trackBounds.height) + 100;
+        const grassGeo = new THREE.PlaneGeometry(grassSize, grassSize);
         const grassMat = new THREE.MeshStandardMaterial({
             color: 0x228b22,
             roughness: 1
@@ -171,10 +415,32 @@ export class OneTapRacer extends Game {
         this.addBarriers();
     }
 
+    calculateTrackBounds() {
+        let minX = Infinity, maxX = -Infinity;
+        let minZ = Infinity, maxZ = -Infinity;
+
+        const points = this.trackCurve.getPoints(100);
+        for (const p of points) {
+            minX = Math.min(minX, p.x);
+            maxX = Math.max(maxX, p.x);
+            minZ = Math.min(minZ, p.z);
+            maxZ = Math.max(maxZ, p.z);
+        }
+
+        return {
+            minX, maxX, minZ, maxZ,
+            width: maxX - minX,
+            height: maxZ - minZ,
+            centerX: (minX + maxX) / 2,
+            centerZ: (minZ + maxZ) / 2
+        };
+    }
+
     addBarriers() {
         if (!this.assets.barrier) return;
 
-        const barrierCount = 80;
+        // Scale barrier count based on track length
+        const barrierCount = Math.floor(this.trackLength / 3);
         for (let i = 0; i < barrierCount; i++) {
             const t = i / barrierCount;
             const point = this.trackCurve.getPointAt(t);
@@ -201,6 +467,12 @@ export class OneTapRacer extends Game {
     }
 
     setupCar() {
+        // Reset car state
+        this.car.t = 0;
+        this.car.speed = 0;
+        this.car.lateralOffset = 0;
+        this.car.lateralVelocity = 0;
+
         // Create container for car (used for positioning and Y rotation)
         this.car.mesh = new THREE.Group();
 
@@ -267,15 +539,17 @@ export class OneTapRacer extends Game {
     setupEnvironment() {
         if (!this.assets.tree) return;
 
-        // Scatter trees around the track
+        // Scatter trees around the track based on bounds
         const treeCount = 40;
+        const radius = Math.max(this.trackBounds.width, this.trackBounds.height) / 2 + 20;
+
         for (let i = 0; i < treeCount; i++) {
             const angle = (i / treeCount) * Math.PI * 2;
-            const radius = 55 + Math.random() * 30;
+            const treeRadius = radius + Math.random() * 30;
 
             const tree = this.assets.tree.clone();
-            tree.position.x = Math.cos(angle) * radius;
-            tree.position.z = Math.sin(angle) * radius;
+            tree.position.x = this.trackBounds.centerX + Math.cos(angle) * treeRadius;
+            tree.position.z = this.trackBounds.centerZ + Math.sin(angle) * treeRadius;
             tree.position.y = 0;
             tree.scale.setScalar(0.8 + Math.random() * 0.4);
             tree.rotation.y = Math.random() * Math.PI * 2;
@@ -287,6 +561,12 @@ export class OneTapRacer extends Game {
     onInput(type, coords) {
         if (this.isGameOver) return;
 
+        // Menu state - buttons handle track selection
+        if (this.state === 'menu') {
+            return;
+        }
+
+        // Racing state input
         if (type === 'start') {
             this.isTouching = true;
         } else if (type === 'end') {
@@ -296,6 +576,11 @@ export class OneTapRacer extends Game {
 
     update(dt) {
         if (this.isGameOver) return;
+
+        // Menu state - no rotation needed
+        if (this.state === 'menu') {
+            return;
+        }
 
         // Wait for track to be initialized
         if (!this.trackCurve) return;
@@ -484,10 +769,26 @@ export class OneTapRacer extends Game {
     dispose() {
         super.dispose();
 
+        // Remove UI elements
+        if (this.trackNameElement) {
+            this.trackNameElement.remove();
+            this.trackCountryElement.remove();
+            this.trackCounterElement.remove();
+            this.leftArrowBtn.remove();
+            this.rightArrowBtn.remove();
+            this.startBtn.remove();
+        }
+
+        // Remove menu ground if exists
+        if (this.menuGround) {
+            this.scene.remove(this.menuGround);
+        }
+
         // Clean up groups
         this.trackGroup.clear();
         this.environmentGroup.clear();
         this.coinGroup.clear();
+        this.trackPreviewGroup.clear();
 
         this.coins = [];
         this.assets = {};
